@@ -1,0 +1,35 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Model files (large)
+*.pt
+*.pth
+
+# Database files (large embeddings)
+models/triplet/database.csv
+models/contrastive/database_contrastive.csv
+
+# Output files (can be regenerated)
+outputs/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Training data (too large for Git)
+data/SNN-TL-Data/train/
