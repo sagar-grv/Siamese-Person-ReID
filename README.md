@@ -129,6 +129,12 @@ web/public/data/       Gallery index and default query image
 web/public/gallery/    Static held-out gallery image set
 ```
 
+## Documentation
+
+For the complete architecture, mathematical formulation, dataset protocol, training configuration, evaluation methodology, browser inference path, deployment instructions, limitations, and future work, read [`TECHNICAL_README.md`](TECHNICAL_README.md).
+
+A storytelling launch post is available in [`LINKEDIN_POST.md`](LINKEDIN_POST.md).
+
 ## References
 
 [1]: https://arxiv.org/abs/1503.03832 "Siamese Neural Networks for One-shot Image Recognition"
