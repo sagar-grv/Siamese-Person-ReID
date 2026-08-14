@@ -117,7 +117,7 @@ pnpm preview --host 0.0.0.0 --port 4173
 
 ## Demo
 
-Try the deployed browser demo: [Trace / Siamese Re-ID Lab](https://temporary-zippy-dune-my1osfh.vercel.app/)
+Try the deployed browser demo: [Trace / Siamese Re-ID Lab](https://siamese-sg.vercel.app/)
 
 The demo loads the ONNX model and performs image retrieval directly in the browser.
 
