@@ -115,20 +115,15 @@ pnpm build
 pnpm preview --host 0.0.0.0 --port 4173
 ```
 
-## Deploy to Vercel
+## Demo
 
-For a Vercel project imported from this repository, use:
+Try the deployed browser demo: [Trace / Siamese Re-ID Lab](https://temporary-zippy-dune-my1osfh.vercel.app/)
 
-| Setting | Value |
-|---|---|
-| Root Directory | `web` |
-| Framework Preset | `Vite` |
-| Install Command | `npm install --no-audit --no-fund` |
-| Build Command | `npm run build` |
-| Output Directory | `dist` |
-| Environment variables | None |
+The demo loads the ONNX model and performs image retrieval directly in the browser.
 
-The nested [`web/vercel.json`](web/vercel.json) contains the same configuration. Do not add `cd web` to the commands when the Root Directory is already set to `web`.
+## Architecture
+
+![Siamese person re-identification architecture](docs/architecture.png)
 
 ## Repository structure
 

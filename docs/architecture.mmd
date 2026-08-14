@@ -1,0 +1,17 @@
+flowchart LR
+    A[Person image A] --> P[Resize 128 x 64\nRGB normalization]
+    B[Person image B] --> P2[Resize 128 x 64\nRGB normalization]
+    P --> E[Siamese CNN encoder\nshared weights]
+    P2 --> E
+    E --> Z1[128D normalized\nembedding A]
+    E --> Z2[128D normalized\nembedding B]
+    Z1 --> D[Contrastive distance\ntraining]
+    Z2 --> D
+    D --> L[Contrastive loss\nmargin 1.0]
+    L --> U[AdamW update]
+    G[Gallery images] --> GE[Same encoder]
+    GE --> GI[Precomputed gallery embeddings]
+    Q[Browser query] --> QE[ONNX encoder]
+    QE --> S[Cosine similarity\nnearest-neighbor search]
+    GI --> S
+    S --> R[Top matches]
