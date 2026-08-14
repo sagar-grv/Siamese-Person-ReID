@@ -39,13 +39,33 @@ Siemese_ATML/
 pip install -r requirements.txt
 ```
 
-### 2. Run Streamlit App
+### 2. Add the Dataset
+
+The image files and trained model artifacts are intentionally excluded from Git because they are large. The repository includes the 4,000-row annotation file at `data/SNN-TL-Data/train.csv`, but you must place the corresponding images in:
+
+```text
+data/SNN-TL-Data/train/
+```
+
+Each row in `train.csv` must resolve its `Anchor`, `Positive`, and `Negative` filenames inside that directory. The training scripts validate this requirement before constructing a DataLoader and report the missing paths directly.
+
+### 3. Train a Model
+
+```bash
+python src/train_triplet.py
+# or
+python src/train_contrastive.py
+```
+
+Training creates the required `models/` and `outputs/` directories automatically. Generated checkpoints and embedding databases are not committed to Git.
+
+### 4. Run Streamlit App
 
 ```bash
 streamlit run app.py
 ```
 
-Open <http://localhost:8501> in your browser.
+Open <http://localhost:8501> in your browser. The app shows which model or embedding database is missing if training has not been completed.
 
 ## 🧠 Models
 
@@ -86,6 +106,9 @@ Training parameters can be modified in `src/train_*.py`:
 - `LR`: 0.001
 - `EARLY_STOP_PATIENCE`: 3
 
-## 📜 License
+## 🛠️ Troubleshooting
 
+If a training command exits before loading data, check that the dataset directory exists and that all filenames in `train.csv` are present. The scripts report the number of missing images and examples of the missing filenames instead of failing later inside a worker process.
+
+## 📜 License
 MIT License

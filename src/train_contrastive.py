@@ -21,6 +21,10 @@ from sklearn.model_selection import train_test_split
 
 from tqdm import tqdm
 
+# Import shared validation helpers when executed as `python src/train_contrastive.py`.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from data_utils import ensure_directories, load_validated_triplets
+
 # ==================== Configuration ====================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)  # Go up from src/ to project root
@@ -213,14 +217,13 @@ def main():
     print(f"   Data directory: {DATA_DIR}")
     print(f"   CSV file: {CSV_FILE}")
     
-    if not os.path.exists(CSV_FILE):
-        print(f"❌ ERROR: CSV file not found at {CSV_FILE}")
+    try:
+        df = load_validated_triplets(CSV_FILE, DATA_DIR)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"❌ ERROR: {exc}")
         return
-    if not os.path.exists(DATA_DIR):
-        print(f"❌ ERROR: Data directory not found at {DATA_DIR}")
-        return
-    
-    df = pd.read_csv(CSV_FILE)
+
+    ensure_directories((MODEL_DIR, OUTPUT_DIR))
     print(f"   Total triplets: {len(df)}")
     
     train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
