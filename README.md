@@ -137,7 +137,7 @@ requirements.txt       Python dependencies
 ```
 
 ## References
-
+```
 [1]: https://zheng-lab-anu.github.io/Project/project_reid.html "Market-1501 dataset project page"
 
 [2]: https://www.cs.utoronto.ca/~rsalakhu/papers/oneshot1.pdf "Koch, Zemel, and Salakhutdinov — Siamese Neural Networks for One-shot Image Recognition"
@@ -147,3 +147,4 @@ requirements.txt       Python dependencies
 [4]: https://www.cv-foundation.org/openaccess/content_iccv_2015/html/Zheng_Scalable_Person_Re-Identification_ICCV_2015_paper.html "Zheng et al. — Scalable Person Re-identification: A Benchmark"
 
 [5]: https://arxiv.org/abs/1502.02171 "Liao et al. — Person Re-identification Meets Image Search"
+```
