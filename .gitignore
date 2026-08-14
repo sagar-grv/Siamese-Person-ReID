@@ -40,3 +40,5 @@ datasets/
 artifacts/
 web/node_modules/
 web/dist/
+.vercel/
+.vercel
