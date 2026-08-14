@@ -1,114 +1,140 @@
-# 🔍 Person Re-Identification System
+# Trace / Siamese Person Re-Identification Lab
 
-A Siamese Neural Network-based person re-identification system comparing **Triplet Loss** vs **Contrastive Loss**.
+A reproducible **Siamese-network person re-identification prototype** rebuilt around the original metric-learning idea: two image crops pass through the same encoder, and contrastive learning places same-identity views near one another while separating different identities. The repository includes a trainable PyTorch pipeline, held-out retrieval evaluation, a self-contained ONNX export, and a browser-native demo intended for Vercel.
 
-## 📁 Project Structure
+> **Important:** This is a research and engineering prototype for visual retrieval, not a biometric identification service. The demo runs inference in the browser and does not upload the selected image to a server.
 
-```
-Siemese_ATML/
-├── data/                           # Dataset
-│   └── SNN-TL-Data/
-│       ├── train/                  # Training images
-│       └── train.csv               # Triplet annotations
-├── models/                         # Trained models
-│   ├── triplet/                    # Triplet Loss model
-│   │   ├── best_model.pt
-│   │   └── database.csv
-│   └── contrastive/                # Contrastive Loss model
-│       ├── best_model_contrastive.pt
-│       └── database_contrastive.csv
-├── outputs/                        # Generated outputs
-│   ├── training_history.png
-│   ├── training_history_contrastive.png
-│   ├── triplet_sample.png
-│   └── results.png
-├── src/                            # Training scripts
-│   ├── train_triplet.py
-│   └── train_contrastive.py
-├── archive/                        # Legacy files
-├── app.py                          # Streamlit web app
-├── requirements.txt                # Dependencies
-└── README.md
-```
+## What changed
 
-## 🚀 Quick Start
+The original checkout depended on an uncommitted image directory, missing model artifacts, and a Streamlit runtime that was not deployable as a lightweight Vercel site. The rebuild makes the data contract explicit, trains a compact model on a documented public subset, evaluates on identities excluded from training, and ships the final inference experience as a static frontend.
 
-### 1. Install Dependencies
+| Layer | Implementation |
+|---|---|
+| Metric-learning core | Shared-weight CNN encoder with L2-normalized 128-dimensional embeddings |
+| Objective | Contrastive loss with margin 1.0; label 0 means same identity and label 1 means different identity |
+| Dataset | Market-1501 public benchmark; deterministic 100-identity train subset and 100 identity-disjoint evaluation identities |
+| Evaluation | Top-1 accuracy, Top-5 accuracy, and mean average precision over query-to-gallery retrieval |
+| Deployment model | ONNX Runtime Web in a Vite static site; precomputed gallery embeddings and local gallery images |
+| Hosting target | Vercel static deployment from the `web/` build output |
+
+## Paper2Code-inspired workflow
+
+The rebuild follows the practical structure emphasized by [Paper2Code][3]: first record the plan and assumptions, then separate analysis artifacts from implementation, and finally produce a runnable repository. The corresponding artifacts in this project are `research_notes.md`, `src/reid_core.py`, `train_siamese.py`, `evaluate_export.py`, `artifacts/metrics.json`, and the final `web/` application.
+
+## Dataset and evaluation protocol
+
+The source benchmark is **Market-1501**, a six-camera person re-identification dataset with 1,501 identities and 32,668 annotated pedestrian bounding boxes. Its official page describes separate training, query, gallery, and ground-truth components [2]. To make local training practical and reproducible, the included experiment uses the following deterministic subset:
+
+| Split | Identities | Images | Purpose |
+|---|---:|---:|---|
+| Training | 100 | 795 | Pair sampling for contrastive training |
+| Query | 100 | 200 | Held-out retrieval queries |
+| Gallery | 100 | 854 | Held-out retrieval gallery |
+
+Training and evaluation identities are disjoint. The dataset archive is not committed to Git; the download and subset preparation commands are recorded below. The public archive used for this run was obtained from a Hugging Face mirror of the Market-1501 ZIP, while the official dataset page remains the authoritative benchmark reference [2].
+
+## Measured result
+
+The model was trained for 12 epochs with seed 42, 1,200 generated pairs per epoch, batch size 32, and a 128-dimensional embedding. The resulting checkpoint was evaluated against all 200 held-out queries and 854 gallery images.
+
+| Metric | Result |
+|---|---:|
+| Top-1 retrieval accuracy | **58.5%** |
+| Top-5 retrieval accuracy | **82.5%** |
+| Mean average precision | **0.3296** |
+| Browser inference latency in local preview | **48 ms** for the default query |
+
+These figures are subset-prototype measurements, not claims of state-of-the-art Market-1501 performance. The complete metrics are saved in `artifacts/metrics.json` during training and are represented in the deployed demo through the precomputed gallery index.
+
+## Local setup
+
+The Python training environment requires PyTorch, scikit-learn, Pillow, Matplotlib, ONNX, ONNX Runtime, and ONNX Script. Install them with:
 
 ```bash
-pip install -r requirements.txt
+sudo pip3 install torch torchvision scikit-learn pillow matplotlib onnx onnxruntime onnxscript tqdm
 ```
 
-### 2. Add the Dataset
+Download the public archive and extract it:
 
-The image files and trained model artifacts are intentionally excluded from Git because they are large. The repository includes the 4,000-row annotation file at `data/SNN-TL-Data/train.csv`, but you must place the corresponding images in:
+```bash
+mkdir -p /home/ubuntu/datasets
+curl -L --fail -o /home/ubuntu/datasets/Market-1501-v15.09.15.zip \
+  'https://huggingface.co/datasets/tuandunghcmut/MyPublicStorage/resolve/main/Market-1501-v15.09.15.zip?download=true'
+unzip -q /home/ubuntu/datasets/Market-1501-v15.09.15.zip -d /home/ubuntu/datasets
+```
+
+The deterministic subset can be prepared with the same logic used for this run: choose 100 available identities from `bounding_box_train`, then choose the first 100 query identities not present in training, copying bounded numbers of images into `data/market1501_subset/{train,query,gallery}`. The resulting directory is intentionally ignored by Git because it contains dataset images.
+
+Train and export the model:
+
+```bash
+python3 train_siamese.py \
+  --data-root data/market1501_subset \
+  --epochs 12 \
+  --pairs-per-epoch 1200 \
+  --batch-size 32
+```
+
+If a checkpoint already exists and only evaluation or export must be repeated, run:
+
+```bash
+python3 evaluate_export.py \
+  --data-root data/market1501_subset \
+  --artifacts artifacts
+```
+
+The export uses `external_data=False` so the browser receives one self-contained `siamese_encoder.onnx` file. This avoids the mounted-file dependency that caused the initial browser preview failure.
+
+## Run the web demo
+
+```bash
+cd web
+pnpm install
+pnpm dev
+```
+
+The frontend loads `/model/siamese_encoder.onnx`, `/data/gallery.json`, `/data/demo-query.jpg`, and the gallery JPEGs from static assets. Uploads are converted to tensors locally in the browser, encoded with ONNX Runtime Web, and ranked by cosine similarity against the precomputed gallery embeddings.
+
+To reproduce the production bundle locally:
+
+```bash
+cd web
+pnpm build
+pnpm preview --host 0.0.0.0 --port 4173
+```
+
+## Deploy to Vercel
+
+The repository includes `vercel.json` configured to build `web/` and publish `web/dist`. With the Vercel CLI authenticated:
+
+```bash
+npx vercel login
+npx vercel --prod
+```
+
+Alternatively, import the GitHub repository in the Vercel dashboard and keep the repository-root configuration from `vercel.json`. No model API key or server-side secret is required because inference is client-side.
+
+## Repository map
 
 ```text
-data/SNN-TL-Data/train/
+src/reid_core.py       Shared encoder, contrastive loss, pair sampling, metrics
+train_siamese.py       Reproducible training and export entry point
+evaluate_export.py     Re-evaluate checkpoint and regenerate web artifacts
+artifacts/             Local checkpoint, metrics, history, and gallery index
+web/index.html         Trace/Lab interface
+web/src/main.js        Browser preprocessing, ONNX inference, retrieval UI
+web/src/style.css      Visual system and responsive layout
+web/public/model/      Self-contained ONNX model for the demo
+web/public/data/       Gallery index and default query image
+web/public/gallery/    Static held-out gallery image set
 ```
 
-Each row in `train.csv` must resolve its `Anchor`, `Positive`, and `Negative` filenames inside that directory. The training scripts validate this requirement before constructing a DataLoader and report the missing paths directly.
+## References
 
-### 3. Train a Model
+[1]: https://arxiv.org/abs/1503.03832 "Siamese Neural Networks for One-shot Image Recognition"
 
-```bash
-python src/train_triplet.py
-# or
-python src/train_contrastive.py
-```
+[2]: https://zheng-lab-anu.github.io/Project/project_reid.html "Market-1501 Dataset official project page"
 
-Training creates the required `models/` and `outputs/` directories automatically. Generated checkpoints and embedding databases are not committed to Git.
+[3]: https://github.com/going-doer/Paper2Code "Paper2Code repository"
 
-### 4. Run Streamlit App
-
-```bash
-streamlit run app.py
-```
-
-Open <http://localhost:8501> in your browser. The app shows which model or embedding database is missing if training has not been completed.
-
-## 🧠 Models
-
-| Loss Function | Description | Model File |
-|---------------|-------------|------------|
-| **Triplet Loss** | Uses anchor-positive-negative triplets | `models/triplet/best_model.pt` |
-| **Contrastive Loss** | Uses positive-negative pairs | `models/contrastive/best_model_contrastive.pt` |
-
-Both models use **EfficientNet-B0** backbone with 512-dimensional embeddings.
-
-## 📊 Training
-
-### Train Triplet Loss Model
-
-```bash
-python src/train_triplet.py
-```
-
-### Train Contrastive Loss Model
-
-```bash
-python src/train_contrastive.py
-```
-
-## 🖥️ Features
-
-- **Model Selection**: Switch between Triplet and Contrastive loss models
-- **Compare Mode**: View results from both models side-by-side
-- **GPU Accelerated**: Automatic CUDA support with mixed precision (AMP)
-- **Interactive UI**: Upload images and find matching persons
-
-## ⚙️ Configuration
-
-Training parameters can be modified in `src/train_*.py`:
-
-- `BATCH_SIZE`: 64 (default)
-- `EPOCHS`: 10
-- `LR`: 0.001
-- `EARLY_STOP_PATIENCE`: 3
-
-## 🛠️ Troubleshooting
-
-If a training command exits before loading data, check that the dataset directory exists and that all filenames in `train.csv` are present. The scripts report the number of missing images and examples of the missing filenames instead of failing later inside a worker process.
-
-## 📜 License
-MIT License
+[4]: https://vercel.com/docs/deployments "Vercel deployment documentation"

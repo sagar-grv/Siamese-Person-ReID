@@ -1,0 +1,10 @@
+{
+  "queries": 200.0,
+  "gallery_images": 854.0,
+  "top1_accuracy": 0.585,
+  "top5_accuracy": 0.825,
+  "mean_average_precision": 0.329583841372546,
+  "dataset": "Market-1501 subset",
+  "embedding_dim": 128,
+  "seed": 42
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A browser-native Siamese network person re-identification demo." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <title>Trace / Siamese Re-ID Lab</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Trace home">
+          <span class="brand-mark"><span></span><span></span><span></span></span>
+          <span>TRACE<span class="brand-divider">/</span>LAB</span>
+        </a>
+        <div class="topbar-meta"><span class="status-dot"></span><span id="model-status">Loading model</span><span class="topbar-line"></span><span>Market-1501 / 128D</span></div>
+      </header>
+
+      <main>
+        <section class="hero container">
+          <div class="hero-copy">
+            <p class="eyebrow">SIAMESE NETWORK <span>•</span> PERSON RE-IDENTIFICATION</p>
+            <h1>Find the same<br /><em>presence</em> again.</h1>
+            <p class="hero-lede">A compact, shared-weight vision model turns a person crop into a searchable visual signature—right in your browser.</p>
+            <div class="hero-notes"><span class="mono">01</span><span>Upload a crop</span><span class="note-arrow">→</span><span>Retrieve nearest camera views</span></div>
+          </div>
+          <div class="hero-orbit" aria-hidden="true">
+            <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+            <div class="orbit-core"><span>128</span><small>DIM</small></div>
+            <div class="orbit-label label-a">SHARED<br />WEIGHTS</div><div class="orbit-label label-b">COSINE<br />SPACE</div>
+          </div>
+        </section>
+
+        <section class="workspace container">
+          <div class="section-label"><span class="mono">/ 01</span><span>QUERY STATION</span><span class="section-rule"></span><span class="mono muted">LOCAL INFERENCE</span></div>
+          <div class="query-grid">
+            <div class="upload-panel panel">
+              <div class="panel-head"><div><span class="kicker">INPUT</span><h2>Drop a person crop</h2></div><span class="panel-index">A</span></div>
+              <label class="dropzone" id="dropzone" for="file-input">
+                <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp" />
+                <div class="drop-icon"><span></span><span></span></div>
+                <p>Drag image here or <u>browse files</u></p>
+                <small>JPG, PNG, WEBP · max 10 MB</small>
+              </label>
+              <div class="query-preview hidden" id="query-preview"><img id="query-image" alt="Uploaded query" /><div class="preview-meta"><span class="kicker">QUERY READY</span><span id="query-name">demo-query.jpg</span></div><button class="text-button" id="clear-query">Clear</button></div>
+              <div class="sample-row"><span>Not ready with an image?</span><button class="sample-button" id="sample-button">Use a sample query <span>↗</span></button></div>
+            </div>
+            <div class="signal-panel panel">
+              <div class="panel-head"><div><span class="kicker">MODEL SIGNAL</span><h2>What the network sees</h2></div><span class="panel-index">B</span></div>
+              <div class="signal-visual"><div class="signal-image" id="signal-image"><img id="signal-thumb" alt="Query preview" /><div class="signal-scan"></div></div><div class="signal-path"><span></span><span></span><span></span></div><div class="embedding-card"><div class="embedding-top"><span>EMBEDDING</span><strong id="embedding-status">WAITING</strong></div><div class="embedding-bars" id="embedding-bars"></div><div class="embedding-foot"><span id="embedding-dim">128-dimensional vector</span><span id="latency">— ms</span></div></div></div>
+              <button class="run-button" id="run-button" disabled><span>Run nearest-neighbor search</span><span class="button-arrow">↗</span></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="results-section container" id="results-section">
+          <div class="section-label"><span class="mono">/ 02</span><span>RETRIEVAL FIELD</span><span class="section-rule"></span><span class="mono muted" id="result-count">AWAITING QUERY</span></div>
+          <div class="results-head"><div><span class="kicker">TOP MATCHES</span><h2>Closest visual signatures</h2></div><div class="metric-strip"><div><span class="metric-value" id="top-match-score">—</span><span class="metric-label">BEST SCORE</span></div><div><span class="metric-value">854</span><span class="metric-label">GALLERY IMAGES</span></div><div><span class="metric-value">6</span><span class="metric-label">CAMERAS</span></div></div></div>
+          <div class="results-grid" id="results-grid"><div class="empty-results"><span class="empty-number">02</span><p>Your nearest matches will appear here.</p><small>The gallery embedding index is precomputed from a held-out Market-1501 subset.</small></div></div>
+        </section>
+
+        <section class="method-section container">
+          <div class="section-label"><span class="mono">/ 03</span><span>METHOD NOTE</span><span class="section-rule"></span><span class="mono muted">PAPER-FAITHFUL CORE</span></div>
+          <div class="method-grid"><div><span class="kicker">ONE ENCODER, TWO VIEWS</span><p>The two branches share the same weights. Contrastive learning makes same-identity pairs converge and different-identity pairs separate in a normalized embedding space.</p></div><div class="method-equation"><span>d(x₁, x₂) = ‖f(x₁) − f(x₂)‖₂</span><small>same person → minimize distance<br />different person → margin = 1.0</small></div><div class="method-disclaimer"><span class="kicker">RESEARCH DEMO</span><p>This is a visual retrieval prototype, not a biometric identification system. It runs locally in the browser; images are not uploaded to a server.</p></div></div>
+        </section>
+      </main>
+      <footer class="footer container"><span>TRACE / LAB · BUILT WITH A SIAMESE ENCODER</span><span>Market-1501 subset · browser-native inference</span></footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -33,3 +33,10 @@ Thumbs.db
 
 # Training data (too large for Git)
 data/SNN-TL-Data/train/
+data/market1501_subset/
+datasets/
+
+# Local ML artifacts and frontend dependencies
+artifacts/
+web/node_modules/
+web/dist/
