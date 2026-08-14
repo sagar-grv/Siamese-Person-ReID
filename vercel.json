@@ -1,6 +1,6 @@
 {
-  "buildCommand": "cd web && pnpm build",
+  "buildCommand": "cd web && npm run build",
   "outputDirectory": "web/dist",
-  "installCommand": "pnpm --dir web install --frozen-lockfile",
+  "installCommand": "cd web && npm install --no-audit --no-fund",
   "framework": null
 }
