@@ -10,6 +10,7 @@ const liveRegion = $("live-region");
 function setStatus(text, ready = false) {
   status.textContent = text;
   status.dataset.state = ready ? "ready" : "loading";
+  document.body.classList.toggle("model-ready", ready);
   document.querySelector(".status-dot").classList.toggle("is-ready", ready);
 }
 
@@ -137,6 +138,7 @@ async function runSearch() {
   if (!state.session || !state.queryBlob) return;
   const button = $("run-button");
   button.disabled = true;
+  button.classList.add("is-running");
   button.querySelector("span").textContent = "Encoding query...";
   $("signal-image").classList.add("active");
   $("embedding-status").textContent = "RUNNING";
@@ -163,6 +165,8 @@ async function runSearch() {
     announce("The search failed. Please try another image.");
   } finally {
     button.disabled = false;
+    button.classList.remove("is-running");
+    $("signal-image").classList.remove("active");
     button.querySelector("span").textContent = "Run nearest-neighbor search";
   }
 }

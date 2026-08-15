@@ -26,3 +26,7 @@ The redesigned production bundle was verified at the local preview. The new desk
 The redesigned search button remained visible and enabled with the sample query. A direct browser click did not update the visible state immediately, so the button handler was triggered through the DOM for verification; the invocation executed without a runtime exception after correcting the console expression syntax.
 
 The sample-query flow completed successfully after invoking the run handler: `EMBEDDING ENCODED`, approximately `55 ms`, `10 MATCHES`, and top score `0.990`. The browser console contains only the earlier malformed console-expression syntax error from the diagnostic attempt and no frontend runtime exception from the redesigned application.
+
+## Animation verification
+
+After rebuilding, the preview reports the model ready and the computed CSS animation state is active: `hero-in` on the hero copy, `orbit-wide` on the orbit visual, and `equalize` on embedding bars. The browser does not prefer reduced motion in this verification session; the CSS includes a reduced-motion override.
