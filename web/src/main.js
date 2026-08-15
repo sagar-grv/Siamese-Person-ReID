@@ -5,10 +5,35 @@ const state = { session: null, gallery: [], queryBlob: null, queryName: "", quer
 const $ = (id) => document.getElementById(id);
 const status = $("model-status");
 const dropzone = $("dropzone");
+const liveRegion = $("live-region");
 
 function setStatus(text, ready = false) {
   status.textContent = text;
-  document.querySelector(".status-dot").style.background = ready ? "#d5ff55" : "#f1a574";
+  status.dataset.state = ready ? "ready" : "loading";
+  document.querySelector(".status-dot").classList.toggle("is-ready", ready);
+}
+
+function announce(message) {
+  if (liveRegion) liveRegion.textContent = message;
+}
+
+function validateImageFile(file) {
+  const supported = ["image/jpeg", "image/png", "image/webp"];
+  if (!file || !supported.includes(file.type)) {
+    announce("Please choose a JPG, PNG, or WEBP image.");
+    return false;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    announce("That image is larger than 10 megabytes. Please choose a smaller file.");
+    return false;
+  }
+  return true;
+}
+
+async function handleFile(file) {
+  if (!validateImageFile(file)) return;
+  await setQuery(file, file.name);
+  announce(`${file.name} is ready for search.`);
 }
 
 function normalizeEmbedding(vector) {
@@ -91,8 +116,9 @@ async function setQuery(blob, name = "query image") {
 function renderResults(results) {
   const grid = $("results-grid");
   grid.innerHTML = "";
-  $("result-count").textContent = `${results.length} MATCHES / COSINE DISTANCE`;
+  $("result-count").textContent = `${results.length} MATCHES`;
   $("top-match-score").textContent = results.length ? results[0].score.toFixed(3) : "—";
+  $("results-section").classList.toggle("has-results", results.length > 0);
   results.forEach((item, index) => {
     const card = document.createElement("article");
     card.className = "result-card";
@@ -128,11 +154,13 @@ async function runSearch() {
     $("embedding-status").textContent = "ENCODED";
     $("latency").textContent = `${Math.round(performance.now() - started)} ms`;
     renderResults(results);
+    announce(`Search complete. ${results.length} nearest matches are ready.`);
     $("results-section").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     console.error(error);
     $("embedding-status").textContent = "ERROR";
-    $("result-count").textContent = "INFERENCE ERROR";
+    $("result-count").textContent = "SEARCH FAILED";
+    announce("The search failed. Please try another image.");
   } finally {
     button.disabled = false;
     button.querySelector("span").textContent = "Run nearest-neighbor search";
@@ -142,7 +170,7 @@ async function runSearch() {
 function bindEvents() {
   $("file-input").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
-    if (file) setQuery(file, file.name);
+    if (file) handleFile(file);
   });
   ["dragenter", "dragover"].forEach((eventName) => dropzone.addEventListener(eventName, (event) => {
     event.preventDefault();
@@ -154,11 +182,12 @@ function bindEvents() {
   }));
   dropzone.addEventListener("drop", (event) => {
     const file = event.dataTransfer.files?.[0];
-    if (file) setQuery(file, file.name);
+    if (file) handleFile(file);
   });
   $("sample-button").addEventListener("click", async () => {
     const response = await fetch("/data/demo-query.jpg");
     await setQuery(await response.blob(), "demo-query.jpg");
+    announce("Sample query loaded and ready for search.");
   });
   $("clear-query").addEventListener("click", () => {
     state.queryBlob = null;
@@ -168,7 +197,10 @@ function bindEvents() {
     $("signal-thumb").removeAttribute("src");
     $("run-button").disabled = true;
     $("embedding-status").textContent = "WAITING";
+    $("result-count").textContent = "AWAITING QUERY";
+    $("results-section").classList.remove("has-results");
     renderBars();
+    announce("Query cleared.");
   });
   $("run-button").addEventListener("click", runSearch);
 }
@@ -185,13 +217,15 @@ async function boot() {
     state.gallery = galleryResponse;
     setStatus("Model ready", true);
     $("embedding-status").textContent = "READY";
+    announce("Model ready. Add a person crop or use the sample query.");
     const response = await fetch("/data/demo-query.jpg");
     await setQuery(await response.blob(), "demo-query.jpg");
   } catch (error) {
     console.error(error);
     setStatus("Model unavailable");
     $("embedding-status").textContent = "OFFLINE";
-    $("result-count").textContent = "MODEL LOAD ERROR";
+    $("result-count").textContent = "MODEL UNAVAILABLE";
+    announce("The model could not load. Refresh the page and try again.");
   }
 }
 
