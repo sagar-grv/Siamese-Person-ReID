@@ -30,3 +30,7 @@ The sample-query flow completed successfully after invoking the run handler: `EM
 ## Animation verification
 
 After rebuilding, the preview reports the model ready and the computed CSS animation state is active: `hero-in` on the hero copy, `orbit-wide` on the orbit visual, and `equalize` on embedding bars. The browser does not prefer reduced motion in this verification session; the CSS includes a reduced-motion override.
+
+## Upgraded model verification
+
+The browser demo was rebuilt with the upgraded ResNet-18 ONNX export and 256-dimensional gallery embeddings. The larger model loaded successfully in the preview, reached `Model ready`, and the sample query remained available. The visible hero copy still says `128 DIM` and `128-dimensional vector`; this is a UI label that should be updated to `256 DIM` and `256-dimensional vector` before final publication.

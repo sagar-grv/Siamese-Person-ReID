@@ -1,0 +1,11 @@
+{
+  "queries": 200.0,
+  "gallery_images": 854.0,
+  "top1_accuracy": 0.13,
+  "top5_accuracy": 0.45,
+  "mean_average_precision": 0.18475501765614355,
+  "dataset": "Market-1501 subset",
+  "embedding_dim": 128,
+  "backbone": "compact-cnn",
+  "protocol": "same-camera filtered"
+}

@@ -18,20 +18,21 @@ The method follows the Siamese metric-learning formulation introduced for one-sh
 
 ## 3. Conceptual model
 
-The two input images are processed by the **same encoder with shared parameters**. Weight sharing is the key Siamese property: the network cannot learn one representation for the left image and a different representation for the right image. Both images must be mapped into the same feature space.
+The two input images are processed by the **same encoder with shared parameters**. The repository keeps the compact contrastive Siamese pipeline in `train_siamese.py` and adds a stronger production/demo pipeline in `train_upgraded.py`. The upgraded path uses a pretrained ResNet-18 backbone, a BatchNorm neck, a 256-dimensional projection, identity classification, and batch-hard triplet mining.
 
 ```mermaid
 flowchart LR
-    A[Image A<br/>person crop] --> PA[Resize 128 x 64<br/>RGB + normalization]
-    B[Image B<br/>person crop] --> PB[Resize 128 x 64<br/>RGB + normalization]
-    PA --> E[SiameseEncoder<br/>shared weights]
+    A[Person crop A] --> PA[Resize 128 x 64<br/>augment + normalize]
+    B[Person crop B] --> PB[Resize 128 x 64<br/>augment + normalize]
+    PA --> E[Shared ResNet-18<br/>pretrained backbone]
     PB --> E
-    E --> ZA[Embedding zA<br/>128 dimensions]
-    E --> ZB[Embedding zB<br/>128 dimensions]
-    ZA --> D[Pairwise Euclidean distance]
-    ZB --> D
-    D --> L[Contrastive loss]
-    L --> U[AdamW update]
+    E --> BN[BatchNorm neck]
+    BN --> Z[256D normalized embedding]
+    BN --> C[Identity classifier]
+    Z --> H[Batch-hard triplet mining]
+    C --> CE[Cross-entropy + label smoothing]
+    H --> U[AdamW update]
+    CE --> U
 ```
 
 During inference, only one image is encoded at a time. The gallery is encoded offline once, and the query embedding is compared with the stored gallery embeddings using cosine similarity. Because the model outputs L2-normalized vectors, cosine similarity and Euclidean distance are directly related:
@@ -66,26 +67,24 @@ The exact code is in [`src/reid_core.py`](src/reid_core.py), specifically `Siame
 
 ## 5. Encoder architecture
 
-The deployed encoder is a compact convolutional network rather than a large pretrained ReID backbone. This choice keeps the model small enough for browser inference and makes the experiment reproducible on a CPU-only environment.
+The browser demo now uses the stronger encoder produced by `train_upgraded.py`. It retains the same fixed `128 × 64` input contract as the compact Siamese model, so the frontend preprocessing and ONNX interface remain unchanged.
 
-| Stage | Operation | Output channels / role |
+| Stage | Operation | Output |
 |---|---|---:|
 | Input | RGB image resized to `128 × 64` | 3 channels |
-| Block 1 | `5 × 5` convolution, stride 2, BatchNorm, ReLU, max pooling | 32 |
-| Block 2 | `3 × 3` convolution, BatchNorm, ReLU, max pooling | 64 |
-| Block 3 | `3 × 3` convolution, BatchNorm, ReLU, max pooling | 128 |
-| Block 4 | `3 × 3` convolution, BatchNorm, ReLU | 256 |
-| Aggregation | Adaptive average pooling to `1 × 1` | 256 features |
-| Projection | Linear layer | 128-dimensional embedding |
-| Output | L2 normalization | Unit-length vector |
+| Backbone | ImageNet-pretrained ResNet-18 | 512 pooled features |
+| Metric neck | BatchNorm1d with frozen bias | 512 features |
+| Projection | Linear layer + BatchNorm1d | 256 features |
+| Retrieval output | L2 normalization | 256-dimensional unit vector |
+| Classification branch | Linear identity classifier | 751 training classes |
 
-The adaptive pooling layer removes dependence on the intermediate spatial dimensions after the fixed input resize. The final normalization makes dot products usable as cosine similarity scores and prevents embedding magnitude from dominating retrieval.
+The normalized projection is used for retrieval, while the classifier operates on the neck features. Separating these spaces follows the strong-baseline motivation that classification and metric objectives can have different feature preferences [6].
 
 ## 6. Input preprocessing and augmentation
 
-Every image is converted to RGB, resized to the native Market-1501 aspect ratio of height 128 and width 64, converted to a float tensor, and normalized with ImageNet-style channel statistics. The training pair loader applies horizontal flipping independently as a lightweight augmentation. Evaluation and browser inference do not apply random augmentation.
+Every image is converted to RGB and normalized with ImageNet channel statistics. Training uses a resize to `144 × 72`, a random `128 × 64` crop, horizontal flipping, moderate color jitter, and random erasing. Evaluation and browser inference use deterministic resize only. The random erasing step simulates partial occlusion without changing the model’s input contract.
 
-The preprocessing code is shared between training and export-oriented evaluation in `src/reid_core.py`. The browser implementation mirrors the same channel ordering, image dimensions, and normalization in `web/src/main.js`. Keeping those operations aligned is essential: a model can appear to load correctly while producing poor retrieval if the browser preprocessing differs from training preprocessing.
+The browser implementation mirrors the final deterministic preprocessing in `web/src/main.js`: RGB channel order, `128 × 64` dimensions, float32 tensors, and the same mean/std values. This alignment is essential because preprocessing drift can reduce retrieval quality even when the ONNX model loads successfully.
 
 ## 7. Dataset: Market-1501
 
@@ -121,41 +120,50 @@ unzip -q /home/ubuntu/datasets/Market-1501-v15.09.15.zip \
 
 The original subset preparation selected the first 100 identities available in `bounding_box_train`, then selected the first 100 query identities not present in the training set. It copied bounded numbers of images into `data/market1501_subset/train`, `data/market1501_subset/query`, and `data/market1501_subset/gallery`. The downloaded dataset and generated local subset are ignored by Git.
 
-## 8. Pair construction
+## 8. Identity-balanced batches and hard negatives
 
-`PairDataset` builds pairs on demand rather than writing a large pair manifest to disk. Even-numbered dataset indices generate positive pairs; odd-numbered indices generate negative pairs. Positive pairs sample two images from one identity. Negative pairs sample one image from each of two different identities.
+The upgraded pipeline replaces random pair generation with identity-balanced batches. Each batch samples 8 identities and 4 images per identity. This creates positive and negative relationships inside every batch and allows the loss to choose the hardest positive and hardest negative for each anchor.
 
-The default training run generates 1,200 pairs per epoch, with an approximately balanced positive/negative pattern. Pair selection uses `random.Random(seed + index)`, which makes the sampled pair for a given index reproducible when the seed is unchanged. The `DataLoader` uses `num_workers=0` to reduce platform-dependent worker behavior and simplify reproducibility.
+For normalized embeddings, the pairwise distance is computed from cosine similarity. The batch-hard triplet objective is:
+
+```text
+L_triplet = max(d_hard_positive - d_hard_negative + margin, 0)
+```
+
+The training objective combines this metric loss with identity classification. The original `PairDataset` remains available in `src/reid_core.py` for the compact paper-faithful baseline.
 
 ## 9. Training configuration
 
-The training entry point is [`train_siamese.py`](train_siamese.py). It performs dataset loading, identity-disjointness validation, pair sampling, model construction, optimization, checkpointing, embedding extraction, retrieval evaluation, gallery JSON generation, and ONNX export.
+The compact baseline is trained by [`train_siamese.py`](train_siamese.py). The stronger full-split model is trained by [`train_upgraded.py`](train_upgraded.py). The upgraded entry point validates the Market-1501 identity split, creates identity-balanced batches, trains the joint metric/classification objective, saves the best training-loss checkpoint, evaluates the official query/gallery folders, writes metrics, and exports browser assets from the demo subset.
 
-| Parameter | Default |
+| Parameter | Upgraded value |
 |---|---:|
 | Epochs | 12 |
-| Pairs per epoch | 1,200 |
-| Batch size | 32 |
-| Embedding dimension | 128 |
-| Contrastive margin | 1.0 |
-| Initial learning rate | 0.001 |
-| Weight decay | 0.0001 |
+| Batches per epoch | 150 |
+| Identities per batch | 8 |
+| Images per identity | 4 |
+| Embedding dimension | 256 |
+| Batch-hard margin | 0.3 |
+| Classification loss | Cross-entropy, label smoothing 0.1 |
+| Initial learning rate | 0.0003 |
+| Weight decay | 0.0005 |
 | Optimizer | AdamW |
-| Scheduler | CosineAnnealingLR |
+| Schedule | 2-epoch warmup + cosine decay |
 | Gradient clipping | 5.0 |
 | Random seed | 42 |
-| Input size | `3 × 128 × 64` |
+| Backbone | ImageNet-pretrained ResNet-18 |
 
-The model is saved when the current epoch has the lowest training loss observed so far. The checkpoint contains the model state dictionary, embedding dimension, image size, margin, and seed. For a more rigorous research experiment, validation loss, cross-camera filtering, hard-negative mining, and multiple random seeds should be added; the present pipeline prioritizes clarity and local reproducibility.
-
-Run training with:
+Run the upgraded pipeline with:
 
 ```bash
-python3 train_siamese.py \
-  --data-root data/market1501_subset \
+python3 train_upgraded.py \
+  --market-root datasets/Market-1501-v15.09.15 \
+  --demo-root data/market1501_subset \
+  --artifacts artifacts/upgraded \
   --epochs 12 \
-  --pairs-per-epoch 1200 \
-  --batch-size 32
+  --batches-per-epoch 150 \
+  --identities-per-batch 8 \
+  --images-per-identity 4
 ```
 
 The generated local artifacts are:
@@ -171,7 +179,7 @@ artifacts/
 
 ## 10. Evaluation protocol and metrics
 
-The evaluation process encodes every query and gallery image, computes a pairwise similarity matrix, ranks the gallery for each query, and checks whether gallery images with the same person identifier appear near the top. The implementation currently treats all same-identity gallery images as relevant and does not apply the full Market-1501 `good`/`junk` camera filtering protocol. Therefore, the numbers below are subset-prototype measurements and should not be compared directly with official benchmark leaderboards.
+The upgraded evaluation encodes every query and gallery image, computes cosine similarities, removes gallery images with the same identity and camera as the query, ranks the remaining gallery, and reports CMC-style top-k accuracy and mAP. This same-camera filtering makes the full-split evaluation closer to the standard Market-1501 protocol than the original smoke-test metrics.
 
 ### Top-1 and Top-5 accuracy
 
@@ -183,20 +191,19 @@ For each query, the ranked gallery is converted into a binary relevance vector. 
 
 ### Measured results
 
-The recorded run used seed 42, 12 epochs, 1,200 pairs per epoch, and the identity-disjoint subset described above.
+The upgraded run used seed 42, 12 epochs, 150 batches per epoch, and the full Market-1501 training split.
 
-| Metric | Value |
+| Full evaluation metric | Value |
 |---|---:|
-| Queries | 200 |
-| Gallery images | 854 |
-| Training images | 795 |
-| Training identities | 100 |
-| Evaluation identities | 100 |
-| Top-1 accuracy | **58.5%** |
-| Top-5 accuracy | **82.5%** |
-| Mean average precision | **0.3296** |
+| Queries | 3,368 |
+| Gallery images | 19,732 |
+| Training images | 12,936 |
+| Training identities | 751 |
+| Top-1 accuracy | **47.9%** |
+| Top-5 accuracy | **72.0%** |
+| Mean average precision | **0.2773** |
 
-The source metrics are stored in [`reports/metrics.json`](reports/metrics.json), and the training curve values are stored in [`reports/training_history.json`](reports/training_history.json). These results demonstrate that the pipeline is functioning, but they are not a claim of state-of-the-art performance.
+On the 200-query / 854-gallery browser subset, using the same camera-filtered protocol, the compact baseline scored 13.0% top-1 and 0.1848 mAP, while the upgraded model scored 62.0% top-1 and 0.5037 mAP. These subset results measure the implementation change; the full-split numbers are the more realistic benchmark protocol. The source files are [`reports/accuracy_comparison.json`](reports/accuracy_comparison.json), [`reports/upgraded_full_metrics.json`](reports/upgraded_full_metrics.json), and [`reports/upgraded_demo_metrics.json`](reports/upgraded_demo_metrics.json).
 
 ## 11. ONNX export and browser inference
 
@@ -241,7 +248,7 @@ The frontend is a Vite application with a deliberately small runtime surface.
 | `web/public/gallery/` | Static gallery images |
 | `web/vercel.json` | Configuration when Vercel Root Directory is `web` |
 
-The project deliberately uses a browser-only architecture for the public demo. This keeps uploaded images local to the user’s browser and avoids deploying a heavyweight Python runtime to a serverless function.
+The project deliberately uses a browser-only architecture for the public demo. The upgraded ONNX export is larger than the compact baseline because it contains the ResNet-18 backbone, but it keeps uploaded images local to the user’s browser and avoids deploying a heavyweight Python runtime to a serverless function.
 
 ## 13. Local web development
 
@@ -291,7 +298,7 @@ A reproducible run should use the same dataset subset, seed, input dimensions, n
 | Positive label | 0.0 |
 | Negative label | 1.0 |
 | Margin | 1.0 |
-| Embedding | L2-normalized, 128 dimensions |
+| Embedding | L2-normalized, 256 dimensions |
 | Gallery score | Query/gallery dot product |
 | Browser preprocessing | Matches Python preprocessing |
 
@@ -299,13 +306,13 @@ For stronger scientific reporting, repeat the experiment across several seeds, r
 
 ## 16. Known limitations
 
-The current model is a compact prototype trained on a small subset rather than the full Market-1501 training set. Its training objective uses sampled pairs and does not perform hard-negative mining. It does not implement camera-aware `good`/`junk` filtering from the full benchmark evaluation protocol. The browser gallery is also a fixed precomputed index, so adding new gallery images requires regenerating embeddings and redeploying the static assets.
+The repository still includes the compact subset-trained Siamese baseline for comparison, but the browser demo now uses the upgraded ResNet-18 checkpoint trained on the full Market-1501 training split. The upgraded pipeline uses same-camera filtering and batch-hard mining, but it is still a small research prototype rather than a tuned state-of-the-art system. The browser gallery is a fixed precomputed index, so adding new gallery images requires regenerating embeddings and redeploying the static assets.
 
 The system should not be interpreted as robust identity recognition in uncontrolled real-world environments. Performance may degrade under different camera domains, clothing changes, occlusion, crowding, unusual poses, image compression, or demographic distribution shifts. The public demo displays dataset identifiers for technical inspection; a production system should use privacy-preserving identifiers and appropriate governance.
 
 ## 17. Future work
 
-The most useful next steps are to train on the complete allowed Market-1501 training split, add a validation protocol, implement official cross-camera evaluation, use semi-hard or batch-hard negative mining, compare multiple backbones, calibrate similarity thresholds, add gallery management, and measure latency and memory on representative mobile browsers. A production deployment should also define data-retention rules, user consent, access control, audit logging, and an explicit prohibition on high-impact biometric use.
+The most useful next steps are validation-based checkpoint selection, multi-seed reporting, cross-domain testing, camera-aware sampling, confidence calibration, query expansion or re-ranking, OSNet/ResNet comparisons, and a lighter mobile export. A production deployment should also define data-retention rules, user consent, access control, audit logging, and an explicit prohibition on high-impact biometric use.
 
 ## References
 
@@ -318,3 +325,7 @@ The most useful next steps are to train on the complete allowed Market-1501 trai
 [4]: https://vercel.com/docs/deployments "Vercel deployment documentation"
 
 [5]: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf "Dimensionality Reduction by Learning an Invariant Mapping"
+
+[6]: https://arxiv.org/abs/1906.08332 "A Strong Baseline and Batch Normalization Neck for Deep Person Re-identification"
+
+[7]: https://arxiv.org/abs/2102.04378 "TransReID: Transformer-based Object Re-Identification"

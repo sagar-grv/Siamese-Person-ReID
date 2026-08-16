@@ -6,16 +6,15 @@ A compact Siamese-network person re-identification system that learns visual emb
 
 ## How it works
 
-Two person images pass through the same CNN encoder with shared weights. Contrastive loss pulls same-identity pairs closer in embedding space and pushes different-identity pairs apart. The trained encoder produces a normalized 128-dimensional vector. During retrieval, the query vector is compared with precomputed gallery vectors using cosine similarity.
+Two person images pass through the same visual encoder during metric learning. The upgraded model uses a pretrained ResNet-18 backbone with a BatchNorm neck and a 256-dimensional normalized embedding. Identity classification and batch-hard triplet learning improve separation across people and cameras. During retrieval, the query vector is compared with precomputed gallery vectors using cosine similarity.
 
 | Component | Implementation |
 |---|---|
-| Encoder | Compact CNN with BatchNorm, ReLU, pooling, and adaptive average pooling |
-| Embedding | 128-dimensional L2-normalized vector |
-| Loss | Contrastive loss with margin `1.0` |
-| Training | AdamW, cosine learning-rate schedule, deterministic seed `42` |
+| Encoder | Pretrained ResNet-18 with BatchNorm neck and projection head |
+| Embedding | 256-dimensional L2-normalized vector |
+| Loss | Cross-entropy with label smoothing + batch-hard triplet loss |
+| Training | Identity-balanced `8 × 4` batches, random erasing, warmup, cosine decay, seed `42` |
 | Inference | ONNX Runtime Web in the browser |
-| Deployment | Static Vite application on Vercel |
 
 ## Dataset
 
@@ -31,15 +30,22 @@ The dataset images are not committed to Git. The model artifacts and browser gal
 
 ## Results
 
-Training configuration: 12 epochs, 1,200 pairs per epoch, batch size 32, embedding size 128, margin 1.0, seed 42.
+The current browser demo uses the upgraded checkpoint trained for 12 epochs on the full Market-1501 training split: 12,936 images across 751 identities. The official evaluation contains 3,368 queries and 19,732 gallery images, with same-camera matches filtered during ranking.
 
-| Metric | Result |
+| Full Market-1501 evaluation | Result |
 |---|---:|
-| Top-1 accuracy | **58.5%** |
-| Top-5 accuracy | **82.5%** |
-| Mean average precision | **0.3296** |
+| Top-1 accuracy | **47.9%** |
+| Top-5 accuracy | **72.0%** |
+| Mean average precision | **0.2773** |
 
-These are measurements on the project subset and should not be interpreted as official full-dataset benchmark results.
+For a direct project-level comparison, both models were also evaluated on the 200-query / 854-gallery demo subset using the same same-camera-filtered protocol:
+
+| Model | Top-1 | Top-5 | mAP |
+|---|---:|---:|---:|
+| Original compact CNN | 13.0% | 45.0% | 0.1848 |
+| Upgraded ResNet-18 model | **62.0%** | **79.0%** | **0.5037** |
+
+The subset comparison is useful for measuring the implementation change; the full-split numbers are the more realistic benchmark protocol and should not be compared directly with the original unfiltered smoke-test metrics.
 
 ## Installation
 
@@ -71,6 +77,8 @@ The training script validates the directories, filenames, and identity split bef
 
 ## Train and evaluate
 
+The original compact Siamese smoke-test pipeline remains available:
+
 ```bash
 python3 train_siamese.py \
   --data-root data/market1501_subset \
@@ -79,15 +87,20 @@ python3 train_siamese.py \
   --batch-size 32
 ```
 
-Generated artifacts are written to `artifacts/`:
+To train the stronger model on the full downloaded Market-1501 split:
 
-```text
-siamese_market1501.pt
-siamese_encoder.onnx
-metrics.json
-history.json
-gallery.json
+```bash
+python3 train_upgraded.py \
+  --market-root datasets/Market-1501-v15.09.15 \
+  --demo-root data/market1501_subset \
+  --artifacts artifacts/upgraded \
+  --epochs 12 \
+  --batches-per-epoch 150 \
+  --identities-per-batch 8 \
+  --images-per-identity 4
 ```
+
+The upgraded pipeline writes the full-split checkpoint and metrics to `artifacts/upgraded/`, then generates the browser model and gallery embeddings from the demo subset.
 
 To evaluate an existing checkpoint and regenerate exports:
 
@@ -128,11 +141,12 @@ The demo loads the ONNX model and performs image retrieval directly in the brows
 ## Repository structure
 
 ```text
-src/reid_core.py       Siamese encoder, contrastive loss, pairs, metrics
-train_siamese.py       Training, evaluation, checkpointing, ONNX export
-evaluate_export.py     Checkpoint evaluation and export recovery
+src/reid_core.py       Original Siamese encoder, contrastive loss, pairs, metrics
+train_siamese.py       Compact pair-training pipeline and ONNX export
+train_upgraded.py      Stronger full-split ReID training pipeline
 web/                   Vite browser application
-reports/               Recorded metrics and training history
+reports/               Baseline and upgraded metrics and training history
+ACCURACY_ROADMAP.md    Prioritized model-improvement plan
 requirements.txt       Python dependencies
 ```
 

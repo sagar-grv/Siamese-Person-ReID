@@ -26,7 +26,7 @@
           <span class="status-dot" aria-hidden="true"></span>
           <span id="model-status">Loading model</span>
           <span class="topbar-line" aria-hidden="true"></span>
-          <span>MARKET-1501 / 128D</span>
+          <span>MARKET-1501 / 256D</span>
         </div>
       </header>
 
@@ -42,11 +42,11 @@
             </div>
             <div class="hero-note"><span class="mono">01</span><span>Upload a crop</span><span class="note-arrow">→</span><span>Retrieve nearest camera views</span></div>
           </div>
-          <div class="hero-visual" aria-label="128-dimensional embedding visual" role="img">
+          <div class="hero-visual" aria-label="256-dimensional embedding visual" role="img">
             <div class="hero-visual-grid" aria-hidden="true"></div>
             <div class="orbit orbit-one" aria-hidden="true"></div>
             <div class="orbit orbit-two" aria-hidden="true"></div>
-            <div class="orbit-core"><span>128</span><small>DIM</small></div>
+            <div class="orbit-core"><span>256</span><small>DIM</small></div>
             <div class="orbit-label label-a">SHARED<br />WEIGHTS</div>
             <div class="orbit-label label-b">COSINE<br />SPACE</div>
             <span class="orbit-spark spark-a" aria-hidden="true"></span>
@@ -55,7 +55,7 @@
         </section>
 
         <section class="signal-strip container" aria-label="System overview">
-          <div><span class="signal-value">128D</span><span class="signal-label">EMBEDDING</span></div>
+          <div><span class="signal-value">256D</span><span class="signal-label">EMBEDDING</span></div>
           <div><span class="signal-value">854</span><span class="signal-label">GALLERY VIEWS</span></div>
           <div><span class="signal-value">06</span><span class="signal-label">CAMERAS</span></div>
           <div class="signal-strip-note"><span class="status-dot is-ready" aria-hidden="true"></span> LOCAL INFERENCE · NO UPLOADS</div>
@@ -88,7 +88,7 @@
                 <div class="embedding-card">
                   <div class="embedding-top"><span>EMBEDDING</span><strong id="embedding-status">WAITING</strong></div>
                   <div class="embedding-bars" id="embedding-bars" aria-hidden="true"></div>
-                  <div class="embedding-foot"><span id="embedding-dim">128-dimensional vector</span><span id="latency">— ms</span></div>
+                  <div class="embedding-foot"><span id="embedding-dim">256-dimensional vector</span><span id="latency">— ms</span></div>
                 </div>
               </div>
               <button class="run-button" id="run-button" type="button" disabled><span>Run nearest-neighbor search</span><span class="button-arrow">↗</span></button>
