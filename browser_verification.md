@@ -34,3 +34,15 @@ After rebuilding, the preview reports the model ready and the computed CSS anima
 ## Upgraded model verification
 
 The browser demo was rebuilt with the upgraded ResNet-18 ONNX export and 256-dimensional gallery embeddings. The larger model loaded successfully in the preview, reached `Model ready`, and the sample query remained available. The visible hero copy still says `128 DIM` and `128-dimensional vector`; this is a UI label that should be updated to `256 DIM` and `256-dimensional vector` before final publication.
+
+## Confidence-aware review gate verification
+
+The rebuilt browser preview loaded the 256D model and gallery version metadata successfully. The results section displayed `READY TO REVIEW`, a calibrated threshold of `0.590`, and gallery version `df0ef1d10ccb-92f18a0447f7`. The model state was `Model ready`, and the sample query was available.
+
+## Review interaction check
+
+The review strip loaded the calibrated `REVIEW ≥ 0.590` threshold and gallery index version. The preview remained in `READY TO REVIEW` after the first click attempt, so the search event requires a final asynchronous/browser-event check before publication.
+
+## End-to-end confidence review verification
+
+The default query completed browser inference in 143 ms and rendered 10 ranked gallery matches. The top score was `0.893`, above the calibrated `0.590` review threshold, so the review strip displayed `REVIEW CANDIDATE` with the explicit message that human confirmation is required. Cards above the threshold were labeled `REVIEW CANDIDATE`; lower-scoring cards were labeled `LOW CONFIDENCE`. Gallery version `df0ef1d10ccb-92f18a0447f7` remained visible.

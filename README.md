@@ -143,7 +143,7 @@ pnpm install
 pnpm dev
 ```
 
-The frontend loads the ONNX model, gallery embeddings, sample query, and gallery images from `web/public`. Image preprocessing, embedding extraction, and nearest-neighbor ranking run in the browser.
+The frontend loads the ONNX model, gallery embeddings, sample query, gallery images, and calibrated gallery version metadata from `web/public`. Image preprocessing, embedding extraction, and nearest-neighbor ranking run in the browser. The results screen distinguishes `REVIEW CANDIDATE` from `LOW CONFIDENCE`; it never presents a similarity score as proof of identity.
 
 To test the production bundle locally:
 
@@ -172,8 +172,9 @@ train_siamese.py       Compact pair-training pipeline and ONNX export
 train_upgraded.py      Stronger full-split or manifest-backed training pipeline
 evaluate_real_world.py Per-camera metrics and threshold calibration
 examples/               Site manifest template
-web/                   Vite browser application
+web/                   Vite browser application with confidence-aware review gate
 reports/               Baseline, upgraded, and real-world evaluation reports
+REAL_WORLD_DATA_PLAN.md Real-world data, evaluation, and rollout plan
 ACCURACY_ROADMAP.md    Prioritized model-improvement plan
 requirements.txt       Python dependencies
 ```

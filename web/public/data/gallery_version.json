@@ -1,0 +1,77 @@
+{
+  "version": "df0ef1d10ccb-92f18a0447f7",
+  "created_at_utc": "2026-08-16T06:24:49.636616+00:00",
+  "model_name": "strong-reid-resnet18",
+  "dataset": "market1501-demo-validation",
+  "model_sha256": "df0ef1d10ccb64eced004fd0f719a90db4d8dc729a7121d1702bd7a6be4b1172",
+  "gallery_sha256": "92f18a0447f7d19429fe52132016fd094d80ba2460991ee78bbb0a237428f240",
+  "metrics_sha256": "eb3aee37d2414afd8a3abaa5f532738be7cf55d532bbd91fc5cde7daa08cc8cd",
+  "gallery_images": 854,
+  "embedding_dim": 256,
+  "evaluation": {
+    "queries": 200.0,
+    "gallery_images": 854.0,
+    "top1_accuracy": 0.62,
+    "top5_accuracy": 0.79,
+    "mean_average_precision": 0.5037162908176149,
+    "by_query_camera": {
+      "1": {
+        "queries": 84.0,
+        "gallery_images": 854.0,
+        "top1_accuracy": 0.6666666666666666,
+        "top5_accuracy": 0.8333333333333334,
+        "mean_average_precision": 0.5430395029909334
+      },
+      "2": {
+        "queries": 76.0,
+        "gallery_images": 854.0,
+        "top1_accuracy": 0.6578947368421053,
+        "top5_accuracy": 0.8026315789473685,
+        "mean_average_precision": 0.5170657442179106
+      },
+      "3": {
+        "queries": 26.0,
+        "gallery_images": 854.0,
+        "top1_accuracy": 0.5769230769230769,
+        "top5_accuracy": 0.9230769230769231,
+        "mean_average_precision": 0.46679048854530525
+      },
+      "4": {
+        "queries": 9.0,
+        "gallery_images": 854.0,
+        "top1_accuracy": 0.2222222222222222,
+        "top5_accuracy": 0.2222222222222222,
+        "mean_average_precision": 0.27159940973759755
+      },
+      "5": {
+        "queries": 4.0,
+        "gallery_images": 854.0,
+        "top1_accuracy": 0.25,
+        "top5_accuracy": 0.25,
+        "mean_average_precision": 0.28864694966043747
+      },
+      "6": {
+        "queries": 1.0,
+        "gallery_images": 854.0,
+        "top1_accuracy": 0.0,
+        "top5_accuracy": 0.0,
+        "mean_average_precision": 0.09540816326530611
+      }
+    },
+    "threshold_calibration": {
+      "status": "calibrated",
+      "target_false_positive_rate": 0.01,
+      "review_threshold": 0.5896926021575923,
+      "validation_false_positive_rate": 0.0070080193031012705,
+      "validation_true_positive_rate": 0.46415770609318996,
+      "positive_pairs": 1116,
+      "negative_pairs": 169092,
+      "positive_score_p50": 0.5752315521240234,
+      "negative_score_p95": 0.3384340256452559
+    },
+    "model_name": "strong-reid-resnet18",
+    "dataset": "market1501-demo-validation",
+    "embedding_dim": 256,
+    "query_split": "query"
+  }
+}

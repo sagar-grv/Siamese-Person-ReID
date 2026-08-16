@@ -1,7 +1,7 @@
 import * as ort from "onnxruntime-web";
 import "./style.css";
 
-const state = { session: null, gallery: [], queryBlob: null, queryName: "", queryEmbedding: null };
+const state = { session: null, gallery: [], queryBlob: null, queryName: "", queryEmbedding: null, reviewThreshold: null, galleryVersion: null };
 const $ = (id) => document.getElementById(id);
 const status = $("model-status");
 const dropzone = $("dropzone");
@@ -114,21 +114,45 @@ async function setQuery(blob, name = "query image") {
   $("embedding-status").textContent = state.session ? "READY" : "LOADING";
 }
 
+function setReviewState(label, message, tone = "idle") {
+  const strip = $("review-strip");
+  if (!strip) return;
+  $("review-status").textContent = label;
+  $("review-detail").textContent = message;
+  $("threshold-value").textContent = state.reviewThreshold === null ? "THRESHOLD UNAVAILABLE" : `REVIEW ≥ ${state.reviewThreshold.toFixed(3)}`;
+  $("gallery-version").textContent = state.galleryVersion?.version ? `INDEX ${state.galleryVersion.version}` : "INDEX UNVERSIONED";
+  strip.dataset.state = tone;
+}
+
 function renderResults(results) {
   const grid = $("results-grid");
   grid.innerHTML = "";
   $("result-count").textContent = `${results.length} MATCHES`;
   $("top-match-score").textContent = results.length ? results[0].score.toFixed(3) : "—";
   $("results-section").classList.toggle("has-results", results.length > 0);
+  if (!results.length) {
+    setReviewState("NO RELIABLE MATCH", "No ranked candidates are available for review.", "low");
+    return;
+  }
+  const reviewCandidate = state.reviewThreshold !== null && results[0].score >= state.reviewThreshold;
+  setReviewState(
+    reviewCandidate ? "REVIEW CANDIDATE" : "NO RELIABLE MATCH",
+    reviewCandidate
+      ? `The top score exceeds the calibrated review threshold. Human confirmation is still required.`
+      : `The top score is below the calibrated review threshold. Treat these results as exploratory only.`,
+    reviewCandidate ? "candidate" : "low",
+  );
   results.forEach((item, index) => {
     const card = document.createElement("article");
     card.className = "result-card";
     card.style.animationDelay = `${index * 45}ms`;
     const scorePercent = Math.max(0, Math.min(100, ((item.score + 1) / 2) * 100));
+    const isCandidate = state.reviewThreshold !== null && item.score >= state.reviewThreshold;
     card.innerHTML = `
       <img class="result-image" src="${item.image}" alt="Retrieved gallery view ${index + 1}" loading="lazy" />
       <div class="result-top"><span class="rank">0${index + 1}</span><span class="score">${item.score.toFixed(3)}</span></div>
       <div class="result-meta">TRACK ${String(item.pid).padStart(4, "0")} · CAM ${item.camid}</div>
+      <div class="result-review ${isCandidate ? "is-candidate" : "is-low"}">${isCandidate ? "REVIEW CANDIDATE" : "LOW CONFIDENCE"}</div>
       <div class="result-bar"><span style="width:${scorePercent}%"></span></div>`;
     grid.appendChild(card);
   });
@@ -204,6 +228,7 @@ function bindEvents() {
     $("result-count").textContent = "AWAITING QUERY";
     $("results-section").classList.remove("has-results");
     renderBars();
+    setReviewState("NO SEARCH YET", "Run a search to compare this query with the approved gallery.", "idle");
     announce("Query cleared.");
   });
   $("run-button").addEventListener("click", runSearch);
@@ -213,14 +238,19 @@ async function boot() {
   bindEvents();
   renderBars();
   try {
-    const [session, galleryResponse] = await Promise.all([
+    const [session, galleryResponse, versionResponse] = await Promise.all([
       ort.InferenceSession.create("/model/siamese_encoder.onnx", { executionProviders: ["wasm"] }),
       fetch("/data/gallery.json").then((response) => response.json()),
+      fetch("/data/gallery_version.json").then((response) => response.ok ? response.json() : null).catch(() => null),
     ]);
     state.session = session;
     state.gallery = galleryResponse;
+    state.galleryVersion = versionResponse;
+    state.reviewThreshold = Number(versionResponse?.evaluation?.threshold_calibration?.review_threshold);
+    if (!Number.isFinite(state.reviewThreshold)) state.reviewThreshold = null;
     setStatus("Model ready", true);
     $("embedding-status").textContent = "READY";
+    setReviewState("READY TO REVIEW", "Run a search to compare this query with the approved gallery.", "idle");
     announce("Model ready. Add a person crop or use the sample query.");
     const response = await fetch("/data/demo-query.jpg");
     await setQuery(await response.blob(), "demo-query.jpg");
@@ -229,6 +259,7 @@ async function boot() {
     setStatus("Model unavailable");
     $("embedding-status").textContent = "OFFLINE";
     $("result-count").textContent = "MODEL UNAVAILABLE";
+    setReviewState("MODEL UNAVAILABLE", "The review gate is offline until the model and gallery load.", "low");
     announce("The model could not load. Refresh the page and try again.");
   }
 }
