@@ -1,0 +1,8 @@
+# Open-source self-hosted inference API
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+numpy>=2.0
+Pillow>=10.0
+onnxruntime>=1.18
+faiss-cpu>=1.8

@@ -159,6 +159,16 @@ Try the deployed browser demo: [Trace / Siamese Re-ID Lab](https://siamese-sg.ve
 
 The demo loads the ONNX model and performs image retrieval directly in the browser.
 
+## Open-source self-hosting
+
+The browser demo remains fully client-side, and an optional open-source FastAPI + FAISS service is included for local or independently managed deployments. See [`OPEN_SOURCE.md`](OPEN_SOURCE.md) for the license matrix, dataset restrictions, API endpoints, Docker Compose setup, and responsible-use requirements.
+
+```bash
+docker compose -f docker-compose.open-source.yml up --build
+```
+
+This starts the browser demo at `http://localhost:8080` and the review API at `http://localhost:8000/docs`.
+
 ## Architecture
 
 ![Siamese person re-identification architecture](docs/architecture.png)
@@ -173,14 +183,17 @@ train_upgraded.py      Stronger full-split or manifest-backed training pipeline
 evaluate_real_world.py Per-camera metrics and threshold calibration
 examples/               Site manifest template
 web/                   Vite browser application with confidence-aware review gate
+server/app.py          Optional FastAPI + FAISS self-hosted review API
 reports/               Baseline, upgraded, and real-world evaluation reports
+OPEN_SOURCE.md         Open-source licenses and self-hosting guide
 REAL_WORLD_DATA_PLAN.md Real-world data, evaluation, and rollout plan
 ACCURACY_ROADMAP.md    Prioritized model-improvement plan
-requirements.txt       Python dependencies
+requirements.txt       Training dependencies
+requirements-server.txt Optional self-hosted API dependencies
 ```
 
 ## References
-```
+
 [1]: https://zheng-lab-anu.github.io/Project/project_reid.html "Market-1501 dataset project page"
 
 [2]: https://www.cs.utoronto.ca/~rsalakhu/papers/oneshot1.pdf "Koch, Zemel, and Salakhutdinov — Siamese Neural Networks for One-shot Image Recognition"

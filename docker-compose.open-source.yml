@@ -1,0 +1,22 @@
+services:
+  reid-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.reid-api
+    environment:
+      REID_CORS_ORIGINS: "*"
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  reid-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    depends_on:
+      - reid-api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
