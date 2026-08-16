@@ -1,64 +1,41 @@
-# LinkedIn post draft
+# LinkedIn Post — Siamese Person Re-Identification
 
-## From a broken repository to a browser-native Siamese ReID system
+What do you do when a computer-vision project works in theory but breaks in practice?
 
-A few days ago, I opened a person re-identification repository expecting to fix a small issue.
+You rebuild it from first principles.
 
-Instead, I found a project that could not run end to end: the annotation file was present, but the referenced image directory was missing; trained model artifacts were not available; and the original application architecture was not a natural fit for a lightweight public deployment.
+I recently rebuilt and completed a **Siamese person re-identification system** that learns visual embeddings for cross-camera image retrieval. The original repository had missing data, broken imports, incomplete output handling, and no reliable browser deployment path. Instead of patching isolated errors, I redesigned the full workflow around reproducibility, evaluation, browser inference, and responsible real-world use.
 
-That became a much more interesting engineering problem:
+The system now includes:
 
-**Could I rebuild the project from the metric-learning idea, train it on a public person ReID dataset, evaluate it on identities the model had never seen, and make the result run directly in a browser?**
+• A PyTorch training pipeline using a ResNet-18 backbone, BatchNorm neck, 256-dimensional L2-normalized embeddings, label-smoothed classification loss, and batch-hard triplet loss.
 
-The answer became a new Siamese ReID prototype called **Trace / Lab**.
+• Training and evaluation on the public Market-1501 benchmark, with disjoint identities between training and evaluation splits.
 
-The core idea is simple but powerful. Two person images pass through the same encoder with shared weights. A contrastive loss pulls images of the same person closer in embedding space and pushes images of different people apart. Instead of predicting one of a fixed list of identities, the model learns a visual similarity function that can be used for retrieval.
+• ONNX export and a browser-native Vite application using ONNX Runtime Web, so image preprocessing, embedding extraction, and gallery ranking can run locally in the browser.
 
-I used a public Market-1501 subset and deliberately kept training identities separate from evaluation identities. That distinction matters: a ReID model should be tested on its ability to generalize to new people, not only memorize the people it saw during training.
+• A confidence-aware review gate. Instead of pretending that a similarity score is an identity decision, the interface labels results as **REVIEW CANDIDATE**, **LOW CONFIDENCE**, or **NO RELIABLE MATCH**.
 
-The rebuilt pipeline includes:
+• A calibrated review threshold of approximately **0.5897**, based on held-out validation data, together with content-addressed gallery versioning.
 
-• A compact convolutional Siamese encoder
-• 128-dimensional L2-normalized embeddings
-• On-the-fly positive and negative pair generation
-• Contrastive loss with a margin of 1.0
-• Deterministic training with seed 42
-• Top-1, Top-5, and mean average precision evaluation
-• Self-contained ONNX export
-• Browser-side inference with ONNX Runtime Web
-• A Vite frontend deployable to Vercel
+• An open-source self-hosted option using **FastAPI, FAISS, ONNX Runtime, Docker, Docker Compose, and Nginx**. This allows the project to run locally or on an independently managed server without depending on Vercel.
 
-On the reproducible subset experiment, the system achieved:
+The verified demonstration returned 10 ranked candidates in the browser. The top score was **0.893**, above the calibrated review threshold, and the application correctly displayed **REVIEW CANDIDATE** while still requiring human confirmation.
 
-→ 58.5% Top-1 retrieval accuracy
-→ 82.5% Top-5 retrieval accuracy
-→ 0.3296 mean average precision
+On the full Market-1501 evaluation, the upgraded model achieved:
 
-These are not state-of-the-art claims. They are honest prototype measurements from a small subset, and that distinction is important. The goal was to build a transparent, working system with an evaluation protocol—not to hide the limitations behind a polished interface.
+• **47.9% top-1 accuracy**
+• **72.0% top-5 accuracy**
+• **0.2773 mAP**
 
-The most satisfying part was seeing the entire loop work:
+The most important lesson was not simply improving the model. It was building the surrounding system: dataset validation, camera-aware sampling, threshold calibration, gallery versioning, browser inference, deployment configuration, and documentation.
 
-Upload a person crop → encode it locally in the browser → compare it with a precomputed gallery → render the nearest cross-camera views.
+This project is intentionally a **research prototype for authorized visual retrieval**, not a surveillance or biometric-identification system. It must not be used for covert tracking or high-impact automated decisions. Similarity scores are review signals, not proof of identity, and human review remains mandatory.
 
-No Python server. No API key. No image upload endpoint. The model and gallery index are static assets, and inference runs locally in the user’s browser.
-
-This project also reminded me that machine learning engineering is rarely just about writing a model class. The difficult parts were equally practical:
-
-• Finding a usable public dataset source
-• Making the train/evaluation identity split explicit
-• Keeping Python and browser preprocessing identical
-• Debugging ONNX external-data loading
-• Understanding how Vercel Root Directory changes build commands
-• Communicating what the model can and cannot claim
-
-The next improvements would be full-dataset training, official Market-1501 camera-aware evaluation, hard-negative mining, stronger backbones, multiple random seeds, and more rigorous privacy and governance controls.
-
-For now, this is a small but complete example of turning a fragile research project into a reproducible ML product surface.
-
-The code, technical documentation, metrics, and deployment configuration are available here:
+The source code, self-hosting guide, API, Docker configuration, and training workflow are available here:
 
 https://github.com/sagar-grv/Siamese-Person-ReID
 
-What would you improve first: the model architecture, the evaluation protocol, or the production system around it?
+Built with PyTorch, ONNX, ONNX Runtime Web, FastAPI, FAISS, Vite, and open-source tooling.
 
-#MachineLearning #DeepLearning #ComputerVision #PersonReIdentification #SiameseNetwork #MetricLearning #MLOps #ONNX #Vercel #Python
+#MachineLearning #DeepLearning #ComputerVision #PersonReIdentification #SiameseNetwork #MetricLearning #PyTorch #ONNX #FAISS #FastAPI #OpenSource #MLOps #ResponsibleAI
