@@ -21,15 +21,15 @@ import argparse
 import json
 import random
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import torch
 from PIL import Image
 from torch import Tensor, nn
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader, Dataset
 from torchvision import models, transforms
 
+from src.realworld import CameraIdentityBatchSampler, load_manifest
 from src.reid_core import IMAGE_SIZE, ImageRecord, list_records, write_gallery_json
 
 
@@ -72,46 +72,6 @@ class ReIDImageDataset(Dataset[tuple[Tensor, int]]):
         with Image.open(record.path) as image:
             tensor = self.transform(image.convert("RGB"))
         return tensor, record.pid
-
-
-class IdentityBatchSampler(Sampler[list[int]]):
-    """Yield P identities x K images so batch-hard mining sees useful negatives."""
-
-    def __init__(
-        self,
-        records: list[ImageRecord],
-        identities_per_batch: int,
-        images_per_identity: int,
-        batches_per_epoch: int,
-        seed: int,
-    ) -> None:
-        self.identities_per_batch = identities_per_batch
-        self.images_per_identity = images_per_identity
-        self.batches_per_epoch = batches_per_epoch
-        self.seed = seed
-        by_pid: dict[int, list[int]] = {}
-        for index, record in enumerate(records):
-            by_pid.setdefault(record.pid, []).append(index)
-        self.by_pid = by_pid
-        self.pids = sorted(by_pid)
-        if len(self.pids) < identities_per_batch:
-            raise ValueError("The training split has fewer identities than one balanced batch")
-
-    def __len__(self) -> int:
-        return self.batches_per_epoch
-
-    def __iter__(self) -> Iterable[list[int]]:
-        rng = random.Random(self.seed)
-        for _ in range(self.batches_per_epoch):
-            pids = rng.sample(self.pids, self.identities_per_batch)
-            batch: list[int] = []
-            for pid in pids:
-                choices = self.by_pid[pid]
-                if len(choices) >= self.images_per_identity:
-                    batch.extend(rng.sample(choices, self.images_per_identity))
-                else:
-                    batch.extend(rng.choices(choices, k=self.images_per_identity))
-            yield batch
 
 
 class StrongReIDModel(nn.Module):
@@ -220,7 +180,10 @@ def export_onnx(model: StrongReIDModel, path: Path, device: torch.device) -> Non
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--market-root", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--market-root", type=Path)
+    source.add_argument("--manifest", type=Path)
+    parser.add_argument("--manifest-root", type=Path, default=None)
     parser.add_argument("--demo-root", type=Path, default=Path("data/market1501_subset"))
     parser.add_argument("--artifacts", type=Path, default=Path("artifacts/upgraded"))
     parser.add_argument("--epochs", type=int, default=20)
@@ -245,18 +208,28 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.artifacts.mkdir(parents=True, exist_ok=True)
 
-    train_records = list_records(args.market_root / "bounding_box_train")
-    query_records = list_records(args.market_root / "query")
-    gallery_records = list_records(args.market_root / "bounding_box_test")
+    if args.manifest:
+        grouped = load_manifest(args.manifest, args.manifest_root)
+        train_records = grouped["train"]
+        query_records = grouped.get("query", grouped.get("validation", []))
+        gallery_records = grouped.get("gallery", grouped.get("test", []))
+        dataset_name = f"manifest:{args.manifest.name}"
+        if not query_records or not gallery_records:
+            raise ValueError("A manifest training run requires non-empty query and gallery or validation splits")
+    else:
+        train_records = list_records(args.market_root / "bounding_box_train")
+        query_records = list_records(args.market_root / "query")
+        gallery_records = list_records(args.market_root / "bounding_box_test")
+        dataset_name = "Market-1501 full official split"
     train_pids = {record.pid for record in train_records}
     eval_pids = {record.pid for record in query_records} | {record.pid for record in gallery_records}
-    if train_pids & eval_pids:
-        overlap = sorted(train_pids & eval_pids)[:10]
-        raise ValueError(f"Market-1501 train/eval identity overlap detected: {overlap}")
+    identity_overlap = sorted(train_pids & eval_pids)
+    if not args.manifest and identity_overlap:
+        raise ValueError(f"Market-1501 train/eval identity overlap detected: {identity_overlap[:10]}")
 
     # Market-1501 uses different pid ranges for train and test, so class indices are local to training.
     pid_to_class = {pid: index for index, pid in enumerate(sorted(train_pids))}
-    sampler = IdentityBatchSampler(
+    sampler = CameraIdentityBatchSampler(
         train_records,
         identities_per_batch=args.identities_per_batch,
         images_per_identity=args.images_per_identity,
@@ -339,10 +312,11 @@ def main() -> None:
     metrics = market_metrics(query_records, gallery_records, query_embeddings, gallery_embeddings)
     metrics.update(
         {
-            "dataset": "Market-1501 full official split",
+            "dataset": dataset_name,
             "train_images": len(train_records),
             "train_identities": len(train_pids),
             "eval_identities": len(eval_pids),
+            "train_eval_identity_overlap": len(identity_overlap),
             "embedding_dim": args.embedding_dim,
             "backbone": "pretrained-resnet18",
             "loss": "cross-entropy + batch-hard triplet",
@@ -355,9 +329,13 @@ def main() -> None:
     (args.artifacts / "metrics.json").write_text(json.dumps(metrics, indent=2))
     (args.artifacts / "history.json").write_text(json.dumps(history, indent=2))
 
-    # Generate compact browser assets from the existing demo subset using the stronger encoder.
-    demo_query = list_records(args.demo_root / "query")
-    demo_gallery = list_records(args.demo_root / "gallery")
+    # Generate browser assets from the demo subset when available; otherwise use manifest query/gallery records.
+    if (args.demo_root / "query").is_dir() and (args.demo_root / "gallery").is_dir():
+        demo_query = list_records(args.demo_root / "query")
+        demo_gallery = list_records(args.demo_root / "gallery")
+    else:
+        demo_query = query_records
+        demo_gallery = gallery_records
     demo_query_embeddings = embed_records(model, demo_query, device, batch_size=128)
     demo_gallery_embeddings = embed_records(model, demo_gallery, device, batch_size=128)
     write_gallery_json(args.artifacts / "gallery.json", demo_gallery, demo_gallery_embeddings)

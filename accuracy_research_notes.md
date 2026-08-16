@@ -18,3 +18,8 @@ The first improvements should be: use the full Market-1501 train split and offic
 - https://arxiv.org/abs/1906.08332
 - https://arxiv.org/abs/2102.04378
 - https://arxiv.org/abs/1502.02171
+
+## Responsible deployment research
+
+- NIST’s AI Risk Management Framework states that AI systems should incorporate trustworthiness considerations into design, development, use, and evaluation, with risk management, transparency, evaluation, and human oversight. Source: https://www.nist.gov/itl/ai-risk-management-framework
+- The previously discovered ICO biometric-recognition URL currently returns a page-not-found response, so no specific ICO claim is recorded here. Product teams should still obtain current jurisdiction-specific privacy advice before deployment rather than relying on an outdated page.

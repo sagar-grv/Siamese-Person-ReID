@@ -102,6 +102,31 @@ python3 train_upgraded.py \
 
 The upgraded pipeline writes the full-split checkpoint and metrics to `artifacts/upgraded/`, then generates the browser model and gallery embeddings from the demo subset.
 
+## Real-world manifest workflow
+
+For an authorized site dataset, copy [`examples/site_manifest.template.csv`](examples/site_manifest.template.csv), fill it with pseudonymous IDs, cameras, sessions, quality fields, authorization status, and split assignments, then train through the same pipeline:
+
+```bash
+python3 train_upgraded.py \
+  --manifest /path/to/site_manifest.csv \
+  --artifacts artifacts/site_model \
+  --epochs 20 \
+  --batches-per-epoch 200
+```
+
+Evaluate the resulting model with camera-level metrics, calibrated review thresholds, and a content-addressed gallery version:
+
+```bash
+python3 evaluate_real_world.py \
+  --manifest /path/to/site_manifest.csv \
+  --model artifacts/site_model/strong_reid_market1501.pt \
+  --gallery-json artifacts/site_model/gallery.json \
+  --metrics-out reports/site_metrics.json \
+  --version-out reports/site_gallery_version.json
+```
+
+The evaluator reports overall and per-camera retrieval metrics and produces a `match/review/no reliable match` threshold candidate. Use authorized data only; the manifest template does not include personal images or labels.
+
 To evaluate an existing checkpoint and regenerate exports:
 
 ```bash
@@ -142,10 +167,13 @@ The demo loads the ONNX model and performs image retrieval directly in the brows
 
 ```text
 src/reid_core.py       Original Siamese encoder, contrastive loss, pairs, metrics
+src/realworld.py       Manifest loader, camera-aware sampler, gallery versioning
 train_siamese.py       Compact pair-training pipeline and ONNX export
-train_upgraded.py      Stronger full-split ReID training pipeline
+train_upgraded.py      Stronger full-split or manifest-backed training pipeline
+evaluate_real_world.py Per-camera metrics and threshold calibration
+examples/               Site manifest template
 web/                   Vite browser application
-reports/               Baseline and upgraded metrics and training history
+reports/               Baseline, upgraded, and real-world evaluation reports
 ACCURACY_ROADMAP.md    Prioritized model-improvement plan
 requirements.txt       Python dependencies
 ```
